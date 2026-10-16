@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>家里食材台账</title>
+<link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoi5LiA5Lqs6LWE5rqQ546H586HIiwic2hvcnRfbmFtZSI6IuW8tuW3peS6p+WcsCIsInN0YXJ0X3VybCI6Ii4iLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsImJhY2tncm91bmRfY29sb3IiOiIjZjdmN2Y3IiwidGhlbWVfY29sb3IiOiIjMzY3MWU5In0=">
+<meta name="theme-color" content="#3671e9">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
+:root{
+  --bg:#f7f7f7;
+  --card:#ffffff;
+  --text:#222222;
+  --text-secondary:#666666;
+  --border:#dddddd;
+  --item-border:#eeeeee;
+  --primary:#3671e9;
+  --warn:#f57c00;
+  --danger:#e53935;
+  --urgent-bg:#fff8e8;
+  --urgent-border:#f57c00;
+  --modal-bg:rgba(0,0,0,0.44);
+}
+.dark{
+  --bg:#121212;
+  --card:#1e1e1e;
+  --text:#eeeeee;
+  --text-secondary:#aaaaaa;
+  --border:#3a3a3a;
+  --item-border:#333333;
+  --primary:#5488f0;
+  --warn:#ffb74d;
+  --danger:#ef5350;
+  --urgent-bg:#3b3018;
+  --urgent-border:#ffb74d;
+  --modal-bg:rgba(0,0,0,0.7);
+}
+body{
+  background:var(--bg);
+  color:var(--text);
+  padding:12px;
+  transition: background 0.3s, color 0.3s;
+}
+.container{max-width:1200px;margin:0 auto}
+h1{text-align:center;margin-bottom:16px;font-size:22px}
+.top-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+#search-input{
+  flex:1;min-width:0;padding:10px;border:1px solid var(--border);
+  border-radius:8px;font-size:16px;background:var(--card);color:var(--text)
+}
+.top-bar button{
+  padding:10px 10px;border:none;border-radius:6px;
+  background:var(--primary);color:#fff;font-size:14px;cursor:pointer;white-space:nowrap
+}
+#themeBtn{background:transparent;color:var(--text);border:1px solid var(--border)}
+#import-file{display:none}
+
+#drag-container{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:14px;
+}
+@media (min-width:768px){
+  #drag-container{grid-template-columns:repeat(auto-fit,minmax(270px,1fr))}
+  body{padding:20px}
+  h1{font-size:24px}
+}
+
+.card{
+  background:var(--card);border-radius:12px;padding:14px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.12);cursor:move
+}
+.card h2{font-size:17px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.drag-handle{cursor:grab;color:var(--text-secondary);font-size:14px}
+.add-form{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+input,textarea{
+  border:1px solid var(--border);border-radius:6px;padding:10px;font-size:16px;
+  background:var(--card);color:var(--text)
+}
+button.del{background:var(--danger)}
+button.warn{background:var(--warn);color:#000}
+
+.item-list{
+  display:flex;flex-direction:column;gap:8px;
+  max-height: calc(100vh - 300px);overflow:auto;
+  -webkit-overflow-scrolling: touch;
+}
+.item{
+  padding:12px;border:1px solid var(--item-border);border-radius:8px;
+  display:flex;flex-direction:column;gap:6px;cursor:grab;
+}
+.item.urgent{border-color:var(--urgent-border);background:var(--urgent-bg)}
+.item-info{flex:1}
+.item-name{font-weight:500;font-size:16px}
+.item-note{font-size:13px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
+.item-bottom-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+.edit-text{font-size:13px;color:var(--primary);cursor:pointer}
+.item-opt{display:flex;gap:6px;flex-wrap:wrap}
+.item-opt button{padding:5px 8px;font-size:13px}
+
+.modal{
+  position:fixed;inset:0;background:var(--modal-bg);
+  display:flex;align-items:center;justify-content:center;
+  z-index:999;padding:16px;
+}
+.modal-box{
+  background:var(--card);padding:18px;border-radius:10px;
+  width:100%;max-width:360px;display:flex;flex-direction:column;gap:10px
+}
+.modal-hide{display:none}
+.card.sortable-ghost{opacity:0.4;background:#7898cc}
+.item-sortable-ghost{opacity:0.4;background:#7898cc}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <h1>🏠 家里食材台账（本地存储）</h1>
+  <div class="top-bar">
+    <input id="search-input" placeholder="🔍 搜索调料 / 食材 / 半成品 / 速食..." oninput="renderAll()">
+    <button onclick="exportData()">📤 导出</button>
+    <button onclick="document.getElementById('import-file').click()">📥 导入</button>
+    <button id="themeBtn">🌓 深色</button>
+    <input type="file" id="import-file" accept=".json" onchange="importData(event)">
+  </div>
+
+  <div id="drag-container">
+    <div class="card" data-type="cond">
+      <h2><span class="drag-handle">⋮⋮</span> 🧂 调料区</h2>
+      <div class="add-form">
+        <input id="cond-name" placeholder="调料名称：窑鸡王腌料/杨国福底料">
+        <input id="cond-count" placeholder="余量：1包 / 半瓶">
+        <textarea id="cond-note" rows="2" placeholder="备注：适配食材、用法"></textarea>
+        <button onclick="addItem('cond')">添加</button>
+      </div>
+      <div class="item-list" id="cond-list"></div>
+    </div>
+    <div class="card" data-type="raw">
+      <h2><span class="drag-handle">⋮⋮</span> 🥩 生鲜原料（生食材）</h2>
+      <div class="add-form">
+        <input id="raw-name" placeholder="食材名称：牛腩、排骨、牛肉片">
+        <input id="raw-count" placeholder="余量：2块 / 500g">
+        <textarea id="raw-note" rows="2" placeholder="备注：适合搭配什么调料"></textarea>
+        <button onclick="addItem('raw')">添加</button>
+      </div>
+      <div class="item-list" id="raw-list"></div>
+    </div>
+    <div class="card" data-type="half">
+      <h2><span class="drag-handle">⋮⋮</span> 🍲 预制半成品</h2>
+      <div class="add-form">
+        <input id="half-name" placeholder="半成品：焖好牛腩、卤牛肉">
+        <input id="half-count" placeholder="余量：1盒">
+        <textarea id="half-note" rows="2" placeholder="备注：加热方式"></textarea>
+        <button onclick="addItem('half')">添加</button>
+      </div>
+      <div class="item-list" id="half-list"></div>
+    </div>
+    <div class="card" data-type="fast">
+      <h2><span class="drag-handle">⋮⋮</span> 🍜 速食品</h2>
+      <div class="add-form">
+        <input id="fast-name" placeholder="速食：螺蛳粉、酸辣粉、杯面">
+        <input id="fast-count" placeholder="余量：3袋">
+        <textarea id="fast-note" rows="2" placeholder="备注"></textarea>
+        <button onclick="addItem('fast')">添加</button>
+      </div>
+      <div class="item-list" id="fast-list"></div>
+    </div>
+  </div>
+</div>
+<div id="editModal" class="modal modal-hide">
+  <div class="modal-box">
+    <h3>编辑条目</h3>
+    <input id="edit-name" placeholder="名称">
+    <input id="edit-count" placeholder="余量">
+    <textarea id="edit-note" rows="2" placeholder="备注"></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:4px">
+      <button onclick="closeEditModal()">取消</button>
+      <button class="edit" onclick="saveEdit()">保存修改</button>
+    </div>
+  </div>
+</div>
+<script>
+const keys = {cond:'condList',raw:'rawList',half:'halfList',fast:'fastList'}
+const defaultOrder = ["cond","raw","half","fast"];
+let editTarget = { type:null, id:null };
+let sortPanelInstance;
+let itemSortInstances = {};
+
+// 夜间模式逻辑
+const themeBtn = document.getElementById('themeBtn');
+function loadTheme(){
+  const saved = localStorage.getItem('foodTheme');
+  if(saved === 'dark'){
+    document.body.classList.add('dark');
+    themeBtn.textContent = '🌞 浅色';
+  }else{
+    document.body.classList.remove('dark');
+    themeBtn.textContent = '🌓 深色';
+  }
+}
+themeBtn.onclick = ()=>{
+  if(document.body.classList.contains('dark')){
+    document.body.classList.remove('dark');
+    localStorage.setItem('foodTheme','light');
+    themeBtn.textContent = '🌓 深色';
+  }else{
+    document.body.classList.add('dark');
+    localStorage.setItem('foodTheme','dark');
+    themeBtn.textContent = '🌞 浅色';
+  }
+}
+
+function getList(type){let d = localStorage.getItem(keys[type]);return d?JSON.parse(d):[]}
+function saveList(type,arr){localStorage.setItem(keys[type],JSON.stringify(arr))}
+function getPanelOrder(){const saved = localStorage.getItem("panelOrder");return saved ? JSON.parse(saved) : defaultOrder;}
+function savePanelOrder(orderArr){localStorage.setItem("panelOrder", JSON.stringify(orderArr));}
+function addItem(type){
+  const name = document.getElementById(type+'-name').value.trim()
+  const count = document.getElementById(type+'-count').value.trim()
+  const note = document.getElementById(type+'-note').value.trim()
+  if(!name){alert('名称不能为空');return}
+  const arr = getList(type)
+  arr.push({name,count,note,urgent:false,id:Date.now()})
+  saveList(type,arr)
+  renderAll()
+  document.getElementById(type+'-name').value=''
+  document.getElementById(type+'-count').value=''
+  document.getElementById(type+'-note').value=''
+}
+function delItem(type,id){let arr = getList(type);arr = arr.filter(x=>x.id!==id);saveList(type,arr);renderAll()}
+function toggleUrgent(type,id){const arr = getList(type);const item = arr.find(x=>x.id===id);if(item) item.urgent = !item.urgent;saveList(type,arr);renderAll()}
+function openEditModal(type,id){
+  const arr = getList(type);
+  const item = arr.find(it=>it.id===id);
+  if(!item) return;
+  editTarget = {type,id};
+  document.getElementById('edit-name').value = item.name;
+  document.getElementById('edit-count').value = item.count||'';
+  document.getElementById('edit-note').value = item.note||'';
+  document.getElementById('editModal').classList.remove('modal-hide');
+}
+function closeEditModal(){document.getElementById('editModal').classList.add('modal-hide');editTarget = { type:null, id:null };}
+function saveEdit(){
+  const {type,id} = editTarget;
+  if(!type) return;
+  const name = document.getElementById('edit-name').value.trim();
+  const count = document.getElementById('edit-count').value.trim();
+  const note = document.getElementById('edit-note').value.trim();
+  if(!name){alert('名称不能为空');return}
+  const arr = getList(type);
+  const item = arr.find(it=>it.id===id);
+  if(item){item.name = name;item.count = count;item.note = note;}
+  saveList(type,arr);closeEditModal();renderAll();
+}
+function render(type){
+  const keyword = document.getElementById('search-input').value.trim().toLowerCase()
+  let arr = getList(type)
+  if(keyword){arr = arr.filter(it=>it.name.toLowerCase().includes(keyword) || it.note.toLowerCase().includes(keyword))}
+  const wrap = document.getElementById(type+'-list')
+  wrap.innerHTML = ''
+  arr.forEach(it=>{
+    const div = document.createElement('div')
+    let cls = ''
+    if(it.urgent) cls = 'urgent'
+    div.className = 'item '+cls
+    div.dataset.itemId = it.id;
+    div.innerHTML = `
+    <div class="item-info">
+      <div class="item-name">${it.name}</div>
+      <div class="item-note">余量：${it.count||'无'}<br>备注：${it.note||'无'}</div>
+    </div>
+    <div class="item-bottom-row">
+      <span class="edit-text" onclick="openEditModal('${type}',${it.id})">编辑</span>
+      <div class="item-opt">
+        <button class="warn" onclick="toggleUrgent('${type}',${it.id})">优先</button>
+        <button class="del" onclick="delItem('${type}',${it.id})">删</button>
+      </div>
+    </div>`
+    wrap.appendChild(div)
+  })
+  initItemSortable(type);
+}
+function renderAll(){render('cond');render('raw');render('half');render('fast')}
+function initItemSortable(type){
+  const listEl = document.getElementById(`${type}-list`);
+  if(!listEl) return;
+  if(itemSortInstances[type]){itemSortInstances[type].destroy();}
+  itemSortInstances[type] = new Sortable(listEl,{
+    animation:150,ghostClass:"item-sortable-ghost",filter: 'button, .edit-text',
+    onEnd:function(evt){
+      const arr = getList(type);
+      const newOrderIds = [];
+      listEl.querySelectorAll('.item').forEach(el=>{newOrderIds.push(Number(el.dataset.itemId));})
+      arr.sort((a,b)=> newOrderIds.indexOf(a.id) - newOrderIds.indexOf(b.id));
+      saveList(type,arr);
+    }
+  })
+}
+function exportData(){
+  const all = {condList:getList('cond'),rawList:getList('raw'),halfList:getList('half'),fastList:getList('fast'),panelOrder:getPanelOrder()}
+  const blob = new Blob([JSON.stringify(all,null,2)],{type:'application/json'})
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = '食材台账备份.json'
+  a.click()
+}
+function importData(evt){
+  const f = evt.target.files[0]
+  if(!f) return
+  const reader = new FileReader()
+  reader.onload = function(e){
+    try{
+      const data = JSON.parse(e.target.result)
+      if(data.condList) localStorage.setItem('condList',JSON.stringify(data.condList))
+      if(data.rawList) localStorage.setItem('rawList',JSON.stringify(data.rawList))
+      if(data.halfList) localStorage.setItem('halfList',JSON.stringify(data.halfList))
+      if(data.fastList) localStorage.setItem('fastList',JSON.stringify(data.fastList))
+      if(data.panelOrder) localStorage.setItem('panelOrder',JSON.stringify(data.panelOrder))
+      initSortable()
+      renderAll()
+      alert('导入成功！')
+    }catch(err){alert('文件格式错误，请选择备份的json文件')}
+  }
+  reader.readAsText(f)
+}
+function initSortable(){
+  const container = document.getElementById('drag-container');
+  const order = getPanelOrder();
+  order.forEach(t=>{const el = container.querySelector(`[data-type="${t}"]`);if(el) container.appendChild(el);})
+  if(sortPanelInstance) sortPanelInstance.destroy();
+  sortPanelInstance = new Sortable(container,{
+    animation:150,handle:".drag-handle",ghostClass:"sortable-ghost",
+    onEnd:function(evt){
+      const newOrder = [];
+      container.querySelectorAll('.card').forEach(card=>{newOrder.push(card.dataset.type);})
+      savePanelOrder(newOrder);
+    }
+  })
+}
+
+loadTheme();
+renderAll();
+initSortable();
+</script>
+</body>
+</html>
