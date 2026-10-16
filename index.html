@@ -69,7 +69,7 @@ h1{text-align:center;margin-bottom:16px;font-size:22px}
 
 .card{
   background:var(--card);border-radius:12px;padding:14px;
-  box-shadow:0 2px 8px rgba(0,0,0,0.12);cursor:move
+  box-shadow:0 2px 8px rgba(0,0,0,0.12);
 }
 .card h2{font-size:17px;margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .drag-handle{cursor:grab;color:var(--text-secondary);font-size:14px}
@@ -81,17 +81,46 @@ input,textarea{
 button.del{background:var(--danger)}
 button.warn{background:var(--warn);color:#000}
 
+/* 条目列表：独立滚动，保留滚动条 */
 .item-list{
-  display:flex;flex-direction:column;gap:8px;
-  max-height: calc(100vh - 300px);overflow:auto;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height: 260px;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding-right:4px;
 }
+/* Safari 显示滚动条 */
+.item-list::-webkit-scrollbar {
+  width: 6px;
+}
+.item-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.item-list::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius:3px;
+}
+
 .item{
   padding:12px;border:1px solid var(--item-border);border-radius:8px;
-  display:flex;flex-direction:column;gap:6px;cursor:grab;
+  display:flex;
+  gap:8px;
 }
 .item.urgent{border-color:var(--urgent-border);background:var(--urgent-bg)}
-.item-info{flex:1}
+.item .item-drag-handle{
+  cursor:grab;
+  color:var(--text-secondary);
+  font-size:16px;
+  flex:0 0 20px;
+  display:flex;
+  align-items:flex-start;
+  padding-top:2px;
+}
+.item-content{
+  flex:1;
+}
 .item-name{font-weight:500;font-size:16px}
 .item-note{font-size:13px;color:var(--text-secondary);margin-top:3px;line-height:1.4}
 .item-bottom-row{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
@@ -266,15 +295,16 @@ function render(type){
     div.className = 'item '+cls
     div.dataset.itemId = it.id;
     div.innerHTML = `
-    <div class="item-info">
+    <div class="item-drag-handle">⋮⋮</div>
+    <div class="item-content">
       <div class="item-name">${it.name}</div>
       <div class="item-note">余量：${it.count||'无'}<br>备注：${it.note||'无'}</div>
-    </div>
-    <div class="item-bottom-row">
-      <span class="edit-text" onclick="openEditModal('${type}',${it.id})">编辑</span>
-      <div class="item-opt">
-        <button class="warn" onclick="toggleUrgent('${type}',${it.id})">优先</button>
-        <button class="del" onclick="delItem('${type}',${it.id})">删</button>
+      <div class="item-bottom-row">
+        <span class="edit-text" onclick="openEditModal('${type}',${it.id})">编辑</span>
+        <div class="item-opt">
+          <button class="warn" onclick="toggleUrgent('${type}',${it.id})">优先</button>
+          <button class="del" onclick="delItem('${type}',${it.id})">删</button>
+        </div>
       </div>
     </div>`
     wrap.appendChild(div)
@@ -287,7 +317,10 @@ function initItemSortable(type){
   if(!listEl) return;
   if(itemSortInstances[type]){itemSortInstances[type].destroy();}
   itemSortInstances[type] = new Sortable(listEl,{
-    animation:150,ghostClass:"item-sortable-ghost",filter: 'button, .edit-text',
+    animation:150,
+    ghostClass:"item-sortable-ghost",
+    handle: '.item-drag-handle', // ✅ 仅左侧⋮⋮把手可以拖拽条目
+    filter: 'button, .edit-text',
     onEnd:function(evt){
       const arr = getList(type);
       const newOrderIds = [];
@@ -330,7 +363,9 @@ function initSortable(){
   order.forEach(t=>{const el = container.querySelector(`[data-type="${t}"]`);if(el) container.appendChild(el);})
   if(sortPanelInstance) sortPanelInstance.destroy();
   sortPanelInstance = new Sortable(container,{
-    animation:150,handle:".drag-handle",ghostClass:"sortable-ghost",
+    animation:150,
+    handle:".drag-handle", // 大类卡片依旧是前面⋮⋮拖动
+    ghostClass:"sortable-ghost",
     onEnd:function(evt){
       const newOrder = [];
       container.querySelectorAll('.card').forEach(card=>{newOrder.push(card.dataset.type);})
